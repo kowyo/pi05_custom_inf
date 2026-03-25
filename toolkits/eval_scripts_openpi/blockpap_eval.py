@@ -43,9 +43,14 @@ import os
 import pathlib
 import sys
 
+import gymnasium as gym
 import imageio
 import numpy as np
 import torch
+from scipy.spatial.transform import Rotation
+
+from rlinf.models.embodiment.openpi.dataconfig import _CONFIGS_DICT
+from toolkits.eval_scripts_openpi import setup_logger
 
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
@@ -56,13 +61,7 @@ _REAL2SIM = (
     / "real2sim_env"
 )
 sys.path.insert(0, str(_REAL2SIM))
-import pick_and_place  # noqa: F401 – registers BlockPAP-v1 (also provides TRAJ_ID global)
-
-import gymnasium as gym
-from scipy.spatial.transform import Rotation
-
-from toolkits.eval_scripts_openpi import setup_logger
-from rlinf.models.embodiment.openpi.dataconfig import _CONFIGS_DICT
+import pick_and_place  # noqa: E402, F401 – registers BlockPAP-v1 (also provides TRAJ_ID global)
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
