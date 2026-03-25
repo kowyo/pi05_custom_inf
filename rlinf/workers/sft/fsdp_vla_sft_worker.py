@@ -74,7 +74,7 @@ class _SimYawBiasDataset:
     """
 
     YAW_BIAS: float = -np.pi / 4  # -45°
-    Z_BIAS:   float = 0.1          # +10 cm
+    Z_BIAS: float = 0.1  # +10 cm
 
     def __init__(self, dataset, num_real_episodes: int, log_every: int):
         self._dataset = dataset
@@ -105,11 +105,11 @@ class _SimYawBiasDataset:
         if is_sim:
             sample = dict(sample)  # 浅拷贝，避免修改原始数据
             state = sample["state"]
-            if hasattr(state, "clone"):          # torch.Tensor
+            if hasattr(state, "clone"):  # torch.Tensor
                 state = state.clone()
                 state[2] = state[2] + self.Z_BIAS
                 state[5] = state[5] + self.YAW_BIAS
-            else:                                # numpy / list
+            else:  # numpy / list
                 state = np.array(state, dtype=np.float32)
                 state[2] += self.Z_BIAS
                 state[5] += self.YAW_BIAS
@@ -124,6 +124,7 @@ class _SimYawBiasDataset:
             # 仅 rank-0 打印，多 worker 时每个 worker 独立统计
             try:
                 import torch.distributed as dist
+
                 rank = dist.get_rank() if dist.is_initialized() else 0
             except Exception:
                 rank = 0
@@ -142,7 +143,7 @@ class _SimYawBiasDataset:
                     logging.info(
                         f"[SimBias] sim state 示例 (bias 后): "
                         f"[x={state_np[0]:.4f}, y={state_np[1]:.4f}, "
-                        f"z={state_np[2]:.4f} (+{self.Z_BIAS*100:.0f}cm), "
+                        f"z={state_np[2]:.4f} (+{self.Z_BIAS * 100:.0f}cm), "
                         f"roll={np.degrees(state_np[3]):.1f}°, pitch={np.degrees(state_np[4]):.1f}°, "
                         f"yaw={np.degrees(state_np[5]):.1f}° ({np.degrees(self.YAW_BIAS):+.0f}°)]"
                     )
@@ -163,9 +164,9 @@ class FSDPVlaSftWorker(FSDPSftWorker):
 
             from rlinf.models.embodiment.openpi.dataconfig import get_openpi_config
 
-            action_subsample_stride = getattr(
-                self.cfg.actor.model.openpi, "action_subsample_stride", 1
-            ) or 1
+            action_subsample_stride = (
+                getattr(self.cfg.actor.model.openpi, "action_subsample_stride", 1) or 1
+            )
             config = get_openpi_config(
                 self.cfg.actor.model.openpi.config_name,
                 model_path=self.cfg.actor.model.model_path,
@@ -178,7 +179,9 @@ class FSDPVlaSftWorker(FSDPSftWorker):
 
             if num_real_episodes is not None and alpha is not None:
                 data_loader = self._build_weighted_openpi_loader(
-                    config, num_real_episodes, float(alpha),
+                    config,
+                    num_real_episodes,
+                    float(alpha),
                     action_subsample_stride=action_subsample_stride,
                 )
             else:
@@ -187,9 +190,11 @@ class FSDPVlaSftWorker(FSDPSftWorker):
                 # it back to the model action_horizon.
                 if action_subsample_stride > 1:
                     import dataclasses
+
                     inflated_model = dataclasses.replace(
                         config.model,
-                        action_horizon=config.model.action_horizon * action_subsample_stride,
+                        action_horizon=config.model.action_horizon
+                        * action_subsample_stride,
                     )
                     config_for_load = dataclasses.replace(config, model=inflated_model)
                 else:
@@ -204,7 +209,11 @@ class FSDPVlaSftWorker(FSDPSftWorker):
             )
 
     def _build_weighted_openpi_loader(
-        self, config, num_real_episodes: int, alpha: float, action_subsample_stride: int = 1
+        self,
+        config,
+        num_real_episodes: int,
+        alpha: float,
+        action_subsample_stride: int = 1,
     ):
         """Build an OpenPI DataLoader with α-ratio weighted episode sampling.
 
@@ -228,7 +237,9 @@ class FSDPVlaSftWorker(FSDPSftWorker):
         # Controlled by cfg.data.apply_sim_bias (default True for backward compat).
         apply_sim_bias = getattr(self.cfg.data, "apply_sim_bias", True)
         if apply_sim_bias:
-            dataset = _SimYawBiasDataset(dataset, num_real_episodes, log_every=config.batch_size)
+            dataset = _SimYawBiasDataset(
+                dataset, num_real_episodes, log_every=config.batch_size
+            )
         dataset = transform_dataset(dataset, data_config)
 
         # Unwrap transform chain to reach the underlying LeRobotDataset
@@ -256,6 +267,7 @@ class FSDPVlaSftWorker(FSDPSftWorker):
         num_samples_per_replica = n // world_size
 
         import logging
+
         logging.info(
             f"[WeightedSampler] alpha={alpha}, real_episodes={num_real_episodes}, "
             f"real_frames={n_real}, sim_frames={n_sim}, "
@@ -290,9 +302,11 @@ class FSDPVlaSftWorker(FSDPSftWorker):
 
         register_pytree_dataclasses(observation)
         observation = _pytree.tree_map(
-            lambda x: torch.as_tensor(x, device=self.device).contiguous().clone()
-            if x is not None
-            else x,
+            lambda x: (
+                torch.as_tensor(x, device=self.device).contiguous().clone()
+                if x is not None
+                else x
+            ),
             observation,
         )
         actions = actions.to(torch.float32)

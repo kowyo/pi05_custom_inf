@@ -82,6 +82,37 @@ GRIPPER_CLOSE_THRESHOLD = 0.04  # total width below this → treat as closed
 # ── Policy loading ────────────────────────────────────────────────────────────
 
 
+def _load_hf_norm_stats(hf_stats_path: str) -> dict:
+    """Convert a HuggingFace LeRobot stats.json to OpenPI norm_stats format.
+
+    LeRobot key names (observation.state / action) are remapped to the OpenPI
+    convention (state / actions) expected by transforms.Normalize/Unnormalize.
+    """
+    import json
+    from openpi.shared.normalize import NormStats  # type: ignore[import]
+
+    with open(hf_stats_path) as f:
+        hf = json.load(f)
+
+    def _arr(key, field):
+        return np.array(hf[key][field], dtype=np.float32)
+
+    return {
+        "state": NormStats(
+            mean=_arr("observation.state", "mean"),
+            std=_arr("observation.state", "std"),
+            q01=_arr("observation.state", "q01"),
+            q99=_arr("observation.state", "q99"),
+        ),
+        "actions": NormStats(
+            mean=_arr("action", "mean"),
+            std=_arr("action", "std"),
+            q01=_arr("action", "q01"),
+            q99=_arr("action", "q99"),
+        ),
+    }
+
+
 def _load_blockpap_policy(args):
     """Load pi0.5 PyTorch policy from a .pt or safetensors checkpoint."""
     import safetensors.torch
@@ -122,7 +153,10 @@ def _load_blockpap_policy(args):
     if asset_id is None:
         raise ValueError("asset_id is None; cannot locate norm stats.")
 
-    norm_stats = _checkpoints.load_norm_stats(norm_stats_dir, asset_id)
+    if getattr(args, "hf_stats_path", None):
+        norm_stats = _load_hf_norm_stats(args.hf_stats_path)
+    else:
+        norm_stats = _checkpoints.load_norm_stats(norm_stats_dir, asset_id)
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     policy = _policy.Policy(
@@ -757,6 +791,12 @@ if __name__ == "__main__":
         type=str,
         default="../my_ckpt/models/pi05_base",
         help="Directory containing <asset_id>/norm_stats.json",
+    )
+    parser.add_argument(
+        "--hf_stats_path",
+        type=str,
+        default=None,
+        help="Path to a HuggingFace LeRobot Dataset v3 stats.json",
     )
     parser.add_argument(
         "--num_steps", type=int, default=5, help="Flow-matching denoising steps"

@@ -58,7 +58,9 @@ class _StrideAggregateDeltaWithBinaryGripper:
         windows = actions.reshape(-1, self.stride, actions.shape[1])
 
         coarse_actions = windows[:, -1, :].copy()
-        coarse_actions[:, : self.delta_dims] = windows[:, :, : self.delta_dims].sum(axis=1)
+        coarse_actions[:, : self.delta_dims] = windows[:, :, : self.delta_dims].sum(
+            axis=1
+        )
 
         if self.gripper_dim < coarse_actions.shape[1]:
             coarse_actions[:, self.gripper_dim] = (
