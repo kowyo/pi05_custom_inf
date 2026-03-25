@@ -1,0 +1,23 @@
+{
+  "output_root": "/workspace1/zhijun/RLinf/real_franka/real2sim_env/mg_dataset/blockpap_cleaned_real",
+  "fps": 20,
+  "image_height": 480,
+  "image_width": 640,
+  "chunk_size": 500,
+  "use_last": false,
+  "temp_clean_dir": "/workspace1/zhijun/RLinf/real_franka/real2sim_env/mg_dataset/_temp_cleaned_pap",
+  "keep_temp_cleaned": false,
+  "cleaning": {
+    "gripper_threshold": 0.0005,
+    "pos_threshold": 0.0005,
+    "rot_threshold": 0.005,
+    "min_static_frames": 5,
+    "min_episode_length": 20
+  },
+  "datasets": [
+    {
+      "path": "/storage/zhijun/real_franka/pick_and_place",
+      "task": "pick up the block and place it on the coaster"
+    }
+  ]
+}

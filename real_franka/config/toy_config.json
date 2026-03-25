@@ -1,0 +1,23 @@
+{
+  "output_root": "/storage/zhijun/real_franka/lerobot_toy",
+  "fps": 15,
+  "image_height": 480,
+  "image_width": 640,
+  "chunk_size": 1000,
+  "use_last": false,
+  "temp_clean_dir": "/storage/zhijun/real_franka/_temp_cleaned_toy",
+  "keep_temp_cleaned": false,
+  "cleaning": {
+    "gripper_threshold": 0.0005,
+    "pos_threshold": 0.001,
+    "rot_threshold": 0.01,
+    "min_static_frames": 10,
+    "min_episode_length": 20
+  },
+  "datasets": [
+    {
+      "path": "/storage/zhijun/real_franka/toy",
+      "task": "pick up the toy doll and place it in the target box"
+    }
+  ]
+}
