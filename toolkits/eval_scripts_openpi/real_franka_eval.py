@@ -51,7 +51,7 @@ import torch
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 # ── Path setup ────────────────────────────────────────────────────────────────
-_OPENPI_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent.parent / "openpi"
+_OPENPI_ROOT = pathlib.Path("/home/showlab/Users/zhijun/openpi")
 # franka_interface.py lives here (standalone, not a package)
 sys.path.insert(0, str(_OPENPI_ROOT / "examples" / "lab"))
 # openpi.lab_utils lives under src/
