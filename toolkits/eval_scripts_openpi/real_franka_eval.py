@@ -71,15 +71,16 @@ from rlinf.models.embodiment.openpi.dataconfig import _CONFIGS_DICT
 TASK_DESCRIPTION = "stack the gray cube on the white cube"
 
 # Safety limits for delta actions
-MAX_POSITION_DELTA = 0.05   # 5 cm per step
-MAX_ROTATION_DELTA = 0.2    # ~11 degrees per step
+MAX_POSITION_DELTA = 0.05  # 5 cm per step
+MAX_ROTATION_DELTA = 0.2  # ~11 degrees per step
 
 # Gripper geometry
-GRIPPER_MAX_WIDTH = 0.08    # total width (both fingers), metres
+GRIPPER_MAX_WIDTH = 0.08  # total width (both fingers), metres
 GRIPPER_CLOSE_THRESHOLD = 0.04  # total width below this → treat as closed
 
 
 # ── Policy loading ────────────────────────────────────────────────────────────
+
 
 def _load_blockpap_policy(args):
     """Load pi0.5 PyTorch policy from a .pt or safetensors checkpoint."""
@@ -128,12 +129,16 @@ def _load_blockpap_policy(args):
         model,
         transforms=[
             *data_config.data_transforms.inputs,
-            transforms.Normalize(norm_stats, use_quantiles=data_config.use_quantile_norm),
+            transforms.Normalize(
+                norm_stats, use_quantiles=data_config.use_quantile_norm
+            ),
             *data_config.model_transforms.inputs,
         ],
         output_transforms=[
             *data_config.model_transforms.outputs,
-            transforms.Unnormalize(norm_stats, use_quantiles=data_config.use_quantile_norm),
+            transforms.Unnormalize(
+                norm_stats, use_quantiles=data_config.use_quantile_norm
+            ),
             *data_config.data_transforms.outputs,
         ],
         sample_kwargs={"num_steps": args.num_steps},
@@ -145,6 +150,7 @@ def _load_blockpap_policy(args):
 
 
 # ── Robot state helpers ───────────────────────────────────────────────────────
+
 
 def get_robot_state(robot, target_ee_pose=None):
     """Read 7-D state from the real robot.
@@ -162,10 +168,10 @@ def get_robot_state(robot, target_ee_pose=None):
     if target_ee_pose is not None:
         ee_pose = target_ee_pose.astype(np.float32)
     else:
-        ee_pose = robot.get_ee_pose().astype(np.float32)   # [x, y, z, qx, qy, qz, qw]
+        ee_pose = robot.get_ee_pose().astype(np.float32)  # [x, y, z, qx, qy, qz, qw]
 
-    position  = ee_pose[:3]
-    quat_xyzw = ee_pose[3:]                               # scipy expects [qx, qy, qz, qw]
+    position = ee_pose[:3]
+    quat_xyzw = ee_pose[3:]  # scipy expects [qx, qy, qz, qw]
     euler = Rotation.from_quat(quat_xyzw).as_euler("xyz").astype(np.float32)
     gripper_width = float(robot.get_gripper_position()[0])  # always read from hardware
 
@@ -179,6 +185,7 @@ def _euler_to_quat(euler: np.ndarray) -> np.ndarray:
 
 # ── Camera display ────────────────────────────────────────────────────────────
 
+
 class CameraDisplay:
     """File-based camera display compatible with openpi camera_viewer.py.
 
@@ -189,10 +196,10 @@ class CameraDisplay:
         python /home/showlab/Users/zhijun/openpi/examples/lab/camera_viewer.py
     """
 
-    FRAME_DIR  = "/home/showlab/Users/zhijun/eval/real_eval/tmp"
+    FRAME_DIR = "/home/showlab/Users/zhijun/eval/real_eval/tmp"
     FRAME_FILE = os.path.join(FRAME_DIR, "combined_frame.npy")
-    STEP_FILE  = os.path.join(FRAME_DIR, "step.txt")
-    INFO_FILE  = os.path.join(FRAME_DIR, "info.txt")
+    STEP_FILE = os.path.join(FRAME_DIR, "step.txt")
+    INFO_FILE = os.path.join(FRAME_DIR, "info.txt")
 
     def __init__(self):
         self._q: queue.Queue = queue.Queue(maxsize=2)
@@ -205,42 +212,71 @@ class CameraDisplay:
         self.running = True
         self._thread.start()
         print(f"  [Display] Writing frames to: {self.FRAME_DIR}")
-        print(f"  [Display] On the HOST run:")
-        print(f"    FRAME_DIR={self.FRAME_DIR} python /home/showlab/Users/zhijun/openpi/examples/lab/camera_viewer.py")
+        print("  [Display] On the HOST run:")
+        print(
+            f"    FRAME_DIR={self.FRAME_DIR} python /home/showlab/Users/zhijun/openpi/examples/lab/camera_viewer.py"
+        )
 
-    def update(self, frame_bgr: np.ndarray, t: int, gripper_state: str,
-               action: np.ndarray, wrist_frame_bgr: np.ndarray | None = None,
-               side_frame_bgr: np.ndarray | None = None):
+    def update(
+        self,
+        frame_bgr: np.ndarray,
+        t: int,
+        gripper_state: str,
+        action: np.ndarray,
+        wrist_frame_bgr: np.ndarray | None = None,
+        side_frame_bgr: np.ndarray | None = None,
+    ):
         """Push frame(s) (BGR) to writer thread. Drops if busy."""
         if not self.running:
             return
         wrist_copy = wrist_frame_bgr.copy() if wrist_frame_bgr is not None else None
-        side_copy  = side_frame_bgr.copy()  if side_frame_bgr  is not None else None
+        side_copy = side_frame_bgr.copy() if side_frame_bgr is not None else None
         try:
-            self._q.put_nowait((frame_bgr.copy(), t, gripper_state, action.copy(), wrist_copy, side_copy))
+            self._q.put_nowait(
+                (
+                    frame_bgr.copy(),
+                    t,
+                    gripper_state,
+                    action.copy(),
+                    wrist_copy,
+                    side_copy,
+                )
+            )
         except queue.Full:
             pass
 
     def _loop(self):
         while self.running:
             try:
-                frame_bgr, t, gripper_state, action, wrist_bgr, side_bgr = self._q.get(timeout=0.3)
+                frame_bgr, t, gripper_state, action, wrist_bgr, side_bgr = self._q.get(
+                    timeout=0.3
+                )
             except queue.Empty:
                 continue
 
             H, W = frame_bgr.shape[:2]
-            pos_mm  = float(np.linalg.norm(action[:3]) * 1000)
+            pos_mm = float(np.linalg.norm(action[:3]) * 1000)
             rot_deg = float(np.degrees(np.linalg.norm(action[3:6])))
 
             def _overlay(img, label):
                 out = img.copy()
-                cv2.putText(out, label, (10, 24),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 230, 0), 2)
+                cv2.putText(
+                    out, label, (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 230, 0), 2
+                )
                 return out
 
-            ext_disp = _overlay(frame_bgr, f"External  step={t}  gripper={gripper_state}")
-            cv2.putText(ext_disp, f"|Dpos|={pos_mm:.2f}mm  |Drot|={rot_deg:.2f}deg",
-                        (10, 52), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 230, 0), 1)
+            ext_disp = _overlay(
+                frame_bgr, f"External  step={t}  gripper={gripper_state}"
+            )
+            cv2.putText(
+                ext_disp,
+                f"|Dpos|={pos_mm:.2f}mm  |Drot|={rot_deg:.2f}deg",
+                (10, 52),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.55,
+                (0, 230, 0),
+                1,
+            )
 
             panels = [ext_disp]
             if wrist_bgr is not None:
@@ -258,7 +294,9 @@ class CameraDisplay:
             with open(self.STEP_FILE, "w") as f:
                 f.write(str(t))
             with open(self.INFO_FILE, "w") as f:
-                f.write(f"gripper={gripper_state}  |Dpos|={pos_mm:.2f}mm  |Drot|={rot_deg:.2f}deg")
+                f.write(
+                    f"gripper={gripper_state}  |Dpos|={pos_mm:.2f}mm  |Drot|={rot_deg:.2f}deg"
+                )
 
     def stop(self):
         self.running = False
@@ -274,12 +312,13 @@ class CameraDisplay:
 
 # ── Gripper controller ────────────────────────────────────────────────────────
 
+
 class GripperController:
     """Binary gripper controller with hysteresis and cooldown."""
 
     def __init__(self, cooldown_steps: int = 10):
         self.cooldown_steps = cooldown_steps
-        self.last_state: bool | None = None   # True = closed
+        self.last_state: bool | None = None  # True = closed
         self.steps_since_cmd = 0
 
     def reset(self):
@@ -304,7 +343,7 @@ class GripperController:
             print(
                 f"  [GRIPPER] Initialised: "
                 f"{'CLOSED' if self.last_state else 'OPEN'} "
-                f"(hw_width={hw_width*1000:.1f} mm)"
+                f"(hw_width={hw_width * 1000:.1f} mm)"
             )
 
         prev_ok = getattr(robot, "get_gripper_prev_cmd_success", lambda: True)()
@@ -329,6 +368,7 @@ class GripperController:
 
 # ── Action execution ──────────────────────────────────────────────────────────
 
+
 def execute_delta_action(robot, model_action: np.ndarray, current_state: np.ndarray):
     """Apply a delta EEF action to the real robot.
 
@@ -342,8 +382,10 @@ def execute_delta_action(robot, model_action: np.ndarray, current_state: np.ndar
     delta_pos = np.clip(model_action[:3], -MAX_POSITION_DELTA, MAX_POSITION_DELTA)
     delta_rot = np.clip(model_action[3:6], -MAX_ROTATION_DELTA, MAX_ROTATION_DELTA)
 
-    if not (np.allclose(model_action[:3], delta_pos) and
-            np.allclose(model_action[3:6], delta_rot)):
+    if not (
+        np.allclose(model_action[:3], delta_pos)
+        and np.allclose(model_action[3:6], delta_rot)
+    ):
         print(
             f"  [WARN] Action clipped: "
             f"Δpos {np.round(model_action[:3], 4)} → {np.round(delta_pos, 4)}  "
@@ -361,6 +403,7 @@ def execute_delta_action(robot, model_action: np.ndarray, current_state: np.ndar
 
 # ── Camera helper ─────────────────────────────────────────────────────────────
 
+
 def setup_camera(args):
     """Create and return (external_cam, wrist_cam, side_cam).
 
@@ -369,8 +412,16 @@ def setup_camera(args):
     if args.use_mock_camera:
         print("  Using MOCK camera (no hardware)")
         ext_cam = camera_utils.MockCamera(width=640, height=480)
-        wrist_cam = camera_utils.MockCamera(width=640, height=480) if args.wrist_camera_serial else None
-        side_cam = camera_utils.MockCamera(width=640, height=480) if args.side_camera_serial else None
+        wrist_cam = (
+            camera_utils.MockCamera(width=640, height=480)
+            if args.wrist_camera_serial
+            else None
+        )
+        side_cam = (
+            camera_utils.MockCamera(width=640, height=480)
+            if args.side_camera_serial
+            else None
+        )
         return ext_cam, wrist_cam, side_cam
 
     devices = camera_utils.list_realsense_devices()
@@ -403,7 +454,9 @@ def setup_camera(args):
             fps=30,
         )
         if args.wrist_camera_exposure is not None:
-            _set_camera_exposure(wrist_cam, args.wrist_camera_exposure, args.wrist_camera_gain)
+            _set_camera_exposure(
+                wrist_cam, args.wrist_camera_exposure, args.wrist_camera_gain
+            )
         print("  Wrist camera ready.")
 
     side_cam = None
@@ -416,7 +469,9 @@ def setup_camera(args):
             fps=30,
         )
         if args.side_camera_exposure is not None:
-            _set_camera_exposure(side_cam, args.side_camera_exposure, args.side_camera_gain)
+            _set_camera_exposure(
+                side_cam, args.side_camera_exposure, args.side_camera_gain
+            )
         print("  Side camera ready.")
 
     return ext_cam, wrist_cam, side_cam
@@ -432,8 +487,11 @@ def _set_camera_exposure(cam, exposure_us: int, gain: int):
     """
     try:
         import pyrealsense2 as rs
+
         profile = cam.pipeline.get_active_profile()
-        color_sensor = profile.get_device().query_sensors()[1]  # index 1 = RGB sensor on D435
+        color_sensor = profile.get_device().query_sensors()[
+            1
+        ]  # index 1 = RGB sensor on D435
         color_sensor.set_option(rs.option.enable_auto_exposure, 0)
         color_sensor.set_option(rs.option.exposure, float(exposure_us))
         color_sensor.set_option(rs.option.gain, float(gain))
@@ -443,6 +501,7 @@ def _set_camera_exposure(cam, exposure_us: int, gain: int):
 
 
 # ── Main evaluation loop ─────────────────────────────────────────────────────
+
 
 def main(args):
     logger = setup_logger(args.exp_name, args.log_dir)
@@ -456,7 +515,9 @@ def main(args):
     # ── Camera ──────────────────────────────────────────────────────────────
     logger.info("Initialising camera(s) …")
     cam, wrist_cam, side_cam = setup_camera(args)
-    logger.info(f"Camera(s) ready. wrist={'yes' if wrist_cam else 'no'}  side={'yes' if side_cam else 'no'}")
+    logger.info(
+        f"Camera(s) ready. wrist={'yes' if wrist_cam else 'no'}  side={'yes' if side_cam else 'no'}"
+    )
 
     # ── Robot ────────────────────────────────────────────────────────────────
     if args.use_mock_robot:
@@ -466,8 +527,8 @@ def main(args):
         logger.info(f"Connecting to robot at {args.nuc_ip}:{args.nuc_port} …")
         robot = FrankaInterface(ip=args.nuc_ip, port=args.nuc_port)
 
-    Kx  = np.array([750.0, 750.0, 750.0, 15.0, 15.0, 15.0])
-    Kxd = np.array([ 37.0,  37.0,  37.0,  2.0,  2.0,  2.0])
+    Kx = np.array([750.0, 750.0, 750.0, 15.0, 15.0, 15.0])
+    Kxd = np.array([37.0, 37.0, 37.0, 2.0, 2.0, 2.0])
 
     gripper_ctrl = GripperController(cooldown_steps=args.gripper_cooldown_steps)
     dt = 1.0 / args.control_frequency
@@ -508,7 +569,7 @@ def main(args):
             gripper_ctrl.reset()
             action_plan = collections.deque()
             frames = []
-            target_pose = None   # None → use real get_ee_pose() on first step
+            target_pose = None  # None → use real get_ee_pose() on first step
 
             for t in range(args.max_steps):
                 step_start = time.time()
@@ -521,9 +582,11 @@ def main(args):
                 # ── 2. Camera image(s) ───────────────────────────────────────
                 ret, frame, _ = cam.read()
                 if not ret:
-                    logger.warning(f"  [t={t}] External camera read failed, skipping step")
+                    logger.warning(
+                        f"  [t={t}] External camera read failed, skipping step"
+                    )
                     continue
-                img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)   # uint8 HWC RGB
+                img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # uint8 HWC RGB
 
                 wrist_img = None
                 ret_w, wrist_frame = False, None
@@ -532,7 +595,9 @@ def main(args):
                     if ret_w:
                         wrist_img = cv2.cvtColor(wrist_frame, cv2.COLOR_BGR2RGB)
                     else:
-                        logger.warning(f"  [t={t}] Wrist camera read failed, skipping wrist input")
+                        logger.warning(
+                            f"  [t={t}] Wrist camera read failed, skipping wrist input"
+                        )
 
                 side_img = None
                 ret_s, side_frame = False, None
@@ -541,7 +606,9 @@ def main(args):
                     if ret_s:
                         side_img = cv2.cvtColor(side_frame, cv2.COLOR_BGR2RGB)
                     else:
-                        logger.warning(f"  [t={t}] Side camera read failed, skipping side input")
+                        logger.warning(
+                            f"  [t={t}] Side camera read failed, skipping side input"
+                        )
 
                 if args.save_video:
                     frames.append(img.copy())
@@ -570,16 +637,14 @@ def main(args):
                         f"inference={inference_ms:.1f} ms"
                     )
 
-                model_action = action_plan.popleft()   # (7,)
+                model_action = action_plan.popleft()  # (7,)
 
                 # ── 4. Debug logging ─────────────────────────────────────────
                 if t % args.log_interval == 0:
                     logger.info(
                         f"  [t={t}] action={np.round(model_action, 5).tolist()}"
                     )
-                    logger.info(
-                        f"  [t={t}] state ={np.round(state, 4).tolist()}"
-                    )
+                    logger.info(f"  [t={t}] state ={np.round(state, 4).tolist()}")
 
                 # ── 5. Execute action ────────────────────────────────────────
                 target_pose = execute_delta_action(robot, model_action, state)
@@ -588,9 +653,18 @@ def main(args):
                 # ── 6. Camera display ────────────────────────────────────────
                 if display is not None:
                     gripper_str = "CLOSED" if gripper_ctrl.last_state else "OPEN"
-                    display.update(frame, t, gripper_str, model_action,
-                                   wrist_frame_bgr=wrist_frame if wrist_cam is not None and ret_w else None,
-                                   side_frame_bgr=side_frame if side_cam is not None and ret_s else None)
+                    display.update(
+                        frame,
+                        t,
+                        gripper_str,
+                        model_action,
+                        wrist_frame_bgr=wrist_frame
+                        if wrist_cam is not None and ret_w
+                        else None,
+                        side_frame_bgr=side_frame
+                        if side_cam is not None and ret_s
+                        else None,
+                    )
                     if display.quit_requested:
                         logger.info("  User pressed q, stopping episode.")
                         break
@@ -601,8 +675,8 @@ def main(args):
                     time.sleep(dt - elapsed)
                 elif t % args.log_interval == 0:
                     logger.warning(
-                        f"  [t={t}] step overran: {elapsed*1000:.1f} ms "
-                        f"(target {dt*1000:.1f} ms)"
+                        f"  [t={t}] step overran: {elapsed * 1000:.1f} ms "
+                        f"(target {dt * 1000:.1f} ms)"
                     )
 
             logger.info(f"  Episode {episode_idx + 1} done ({t + 1} steps).")
@@ -612,8 +686,9 @@ def main(args):
                 out_path = session_video_dir / f"ep{episode_idx + 1:03d}.mp4"
                 subsampled = frames[:: args.video_temp_subsample]
                 imageio.mimwrite(
-                    str(out_path), subsampled,
-                    fps=max(1, 30 // args.video_temp_subsample)
+                    str(out_path),
+                    subsampled,
+                    fps=max(1, 30 // args.video_temp_subsample),
                 )
                 logger.info(f"  Video saved: {out_path}  ({len(subsampled)} frames)")
 
@@ -659,23 +734,40 @@ if __name__ == "__main__":
     )
 
     # ── Logging ──
-    parser.add_argument("--log_dir", type=str, default="/home/showlab/Users/zhijun/eval/real_eval")
+    parser.add_argument(
+        "--log_dir", type=str, default="/home/showlab/Users/zhijun/eval/real_eval"
+    )
     parser.add_argument("--exp_name", type=str, default="blockpap_real_eval")
 
     # ── Policy ──
-    parser.add_argument("--config_name", type=str, default="pi05_blockpap_mix",
-                        help="OpenPI data config name (must match training)")
-    parser.add_argument("--pretrained_path", type=str, required=True,
-                        help="Path to full_weights.pt or safetensors directory")
-    parser.add_argument("--norm_stats_path", type=str,
-                        default="../my_ckpt/models/pi05_base",
-                        help="Directory containing <asset_id>/norm_stats.json")
-    parser.add_argument("--num_steps", type=int, default=5,
-                        help="Flow-matching denoising steps")
-    parser.add_argument("--action_chunk", type=int, default=8,
-                        help="Execute this many actions before re-planning")
-    parser.add_argument("--task_description", type=str,
-                        default=TASK_DESCRIPTION)
+    parser.add_argument(
+        "--config_name",
+        type=str,
+        default="pi05_blockpap_mix",
+        help="OpenPI data config name (must match training)",
+    )
+    parser.add_argument(
+        "--pretrained_path",
+        type=str,
+        required=True,
+        help="Path to full_weights.pt or safetensors directory",
+    )
+    parser.add_argument(
+        "--norm_stats_path",
+        type=str,
+        default="../my_ckpt/models/pi05_base",
+        help="Directory containing <asset_id>/norm_stats.json",
+    )
+    parser.add_argument(
+        "--num_steps", type=int, default=5, help="Flow-matching denoising steps"
+    )
+    parser.add_argument(
+        "--action_chunk",
+        type=int,
+        default=8,
+        help="Execute this many actions before re-planning",
+    )
+    parser.add_argument("--task_description", type=str, default=TASK_DESCRIPTION)
 
     # ── Episode ──
     parser.add_argument("--num_episodes", type=int, default=1)
@@ -684,42 +776,92 @@ if __name__ == "__main__":
     # ── Robot ──
     parser.add_argument("--nuc_ip", type=str, default="192.168.1.143")
     parser.add_argument("--nuc_port", type=int, default=4242)
-    parser.add_argument("--control_frequency", type=float, default=10.0,
-                        help="Hz – target control loop rate")
+    parser.add_argument(
+        "--control_frequency",
+        type=float,
+        default=10.0,
+        help="Hz – target control loop rate",
+    )
     parser.add_argument("--gripper_cooldown_steps", type=int, default=10)
-    parser.add_argument("--use_mock_robot", action="store_true",
-                        help="Use MockRobot (no hardware) for testing")
+    parser.add_argument(
+        "--use_mock_robot",
+        action="store_true",
+        help="Use MockRobot (no hardware) for testing",
+    )
 
     # ── Camera ──
-    parser.add_argument("--external_camera_serial", type=str, default=None,
-                        help="RealSense serial number for external camera")
-    parser.add_argument("--wrist_camera_serial", type=str, default=None,
-                        help="RealSense serial number for wrist camera. "
-                             "If set, wrist image is fed to the model's left_wrist_0_rgb slot.")
-    parser.add_argument("--use_mock_camera", action="store_true",
-                        help="Use MockCamera (no hardware) for testing")
-    parser.add_argument("--camera_exposure", type=int, default=None,
-                        help="Manual exposure in microseconds for external D435 (e.g. 6000).")
-    parser.add_argument("--camera_gain", type=int, default=64,
-                        help="Analog gain for external camera (default: 64)")
-    parser.add_argument("--wrist_camera_exposure", type=int, default=None,
-                        help="Manual exposure in microseconds for wrist camera.")
-    parser.add_argument("--wrist_camera_gain", type=int, default=64,
-                        help="Analog gain for wrist camera (default: 64)")
-    parser.add_argument("--side_camera_serial", type=str, default=None,
-                        help="RealSense serial number for side camera. "
-                             "If set, side image is fed to the model's observation/side_image slot.")
-    parser.add_argument("--side_camera_exposure", type=int, default=None,
-                        help="Manual exposure in microseconds for side camera.")
-    parser.add_argument("--side_camera_gain", type=int, default=64,
-                        help="Analog gain for side camera (default: 64)")
-    parser.add_argument("--show_camera", action="store_true",
-                        help="Show live camera preview window (requires display)")
+    parser.add_argument(
+        "--external_camera_serial",
+        type=str,
+        default=None,
+        help="RealSense serial number for external camera",
+    )
+    parser.add_argument(
+        "--wrist_camera_serial",
+        type=str,
+        default=None,
+        help="RealSense serial number for wrist camera. "
+        "If set, wrist image is fed to the model's left_wrist_0_rgb slot.",
+    )
+    parser.add_argument(
+        "--use_mock_camera",
+        action="store_true",
+        help="Use MockCamera (no hardware) for testing",
+    )
+    parser.add_argument(
+        "--camera_exposure",
+        type=int,
+        default=None,
+        help="Manual exposure in microseconds for external D435 (e.g. 6000).",
+    )
+    parser.add_argument(
+        "--camera_gain",
+        type=int,
+        default=64,
+        help="Analog gain for external camera (default: 64)",
+    )
+    parser.add_argument(
+        "--wrist_camera_exposure",
+        type=int,
+        default=None,
+        help="Manual exposure in microseconds for wrist camera.",
+    )
+    parser.add_argument(
+        "--wrist_camera_gain",
+        type=int,
+        default=64,
+        help="Analog gain for wrist camera (default: 64)",
+    )
+    parser.add_argument(
+        "--side_camera_serial",
+        type=str,
+        default=None,
+        help="RealSense serial number for side camera. "
+        "If set, side image is fed to the model's observation/side_image slot.",
+    )
+    parser.add_argument(
+        "--side_camera_exposure",
+        type=int,
+        default=None,
+        help="Manual exposure in microseconds for side camera.",
+    )
+    parser.add_argument(
+        "--side_camera_gain",
+        type=int,
+        default=64,
+        help="Analog gain for side camera (default: 64)",
+    )
+    parser.add_argument(
+        "--show_camera",
+        action="store_true",
+        help="Show live camera preview window (requires display)",
+    )
 
     # ── Video ──
     parser.add_argument("--save_video", action="store_true", default=True)
-    parser.add_argument("--video_temp_subsample", type=int, default=1,
-                        help="Save every Nth frame")
+    parser.add_argument(
+        "--video_temp_subsample", type=int, default=1, help="Save every Nth frame"
+    )
 
     # ── Misc ──
     parser.add_argument("--log_interval", type=int, default=50)

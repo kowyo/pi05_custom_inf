@@ -77,7 +77,12 @@ def detect_static_segments_advanced(
     gripper_delta = np.abs(np.diff(gripper, axis=0))
 
     is_static = np.concatenate(
-        [[False], (pos_delta < pos_threshold) & (rot_delta < rot_threshold) & (gripper_delta < gripper_threshold)]
+        [
+            [False],
+            (pos_delta < pos_threshold)
+            & (rot_delta < rot_threshold)
+            & (gripper_delta < gripper_threshold),
+        ]
     )
     low_motion = motion_score < motion_score_threshold
     is_abnormal = is_static & low_motion
@@ -164,7 +169,9 @@ def filter_hdf5_file(
         return False, 0, 0
 
 
-def clean_hdf5_dataset(input_path: str, output_path: str, cleaning_params: Dict, fps: float):
+def clean_hdf5_dataset(
+    input_path: str, output_path: str, cleaning_params: Dict, fps: float
+):
     """清洗单个数据集的所有HDF5文件"""
 
     # 查找所有HDF5文件
@@ -181,12 +188,12 @@ def clean_hdf5_dataset(input_path: str, output_path: str, cleaning_params: Dict,
         print(f"[WARNING] No HDF5 files found in: {input_path}")
         return 0, 0, 0
 
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print(f"Cleaning Dataset: {input_path}")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
     print(f"Found {len(files)} HDF5 files")
     print(f"Output: {output_path}")
-    print(f"{'='*80}\n")
+    print(f"{'=' * 80}\n")
 
     stats = {
         "success": 0,
@@ -218,9 +225,9 @@ def clean_hdf5_dataset(input_path: str, output_path: str, cleaning_params: Dict,
         else:
             stats["error"] += 1
 
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print("Cleaning Summary")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
     print(f"Successfully cleaned: {stats['success']}")
     print(f"Skipped (too short):  {stats['skipped']}")
     print(f"Errors:               {stats['error']}")
@@ -229,7 +236,7 @@ def clean_hdf5_dataset(input_path: str, output_path: str, cleaning_params: Dict,
     if stats["original_frames"] > 0:
         kept_ratio = stats["filtered_frames"] / stats["original_frames"] * 100
         print(f"Kept ratio:           {kept_ratio:.1f}%")
-    print(f"{'='*80}\n")
+    print(f"{'=' * 80}\n")
 
     return stats["success"], stats["filtered_frames"], stats["error"]
 
@@ -334,7 +341,13 @@ def load_hdf5(hdf5_path: str):
     if timestamps is not None:
         T = min(T, len(timestamps))
 
-    return ee_pose[:T], front_imgs[:T], wrist_imgs[:T], left_imgs[:T], timestamps[:T] if timestamps is not None else None
+    return (
+        ee_pose[:T],
+        front_imgs[:T],
+        wrist_imgs[:T],
+        left_imgs[:T],
+        timestamps[:T] if timestamps is not None else None,
+    )
 
 
 def build_episode_data(
@@ -381,16 +394,24 @@ def build_episode_data(
     if not use_last:
         with ThreadPoolExecutor(max_workers=3) as executor:
             futures = {
-                "front": executor.submit(resize_batch, front_imgs, image_size, CROP_CONFIG["front"]),
-                "wrist": executor.submit(resize_batch, wrist_imgs, image_size, CROP_CONFIG["wrist"]),
-                "left": executor.submit(resize_batch, left_imgs, image_size, CROP_CONFIG["left"]),
+                "front": executor.submit(
+                    resize_batch, front_imgs, image_size, CROP_CONFIG["front"]
+                ),
+                "wrist": executor.submit(
+                    resize_batch, wrist_imgs, image_size, CROP_CONFIG["wrist"]
+                ),
+                "left": executor.submit(
+                    resize_batch, left_imgs, image_size, CROP_CONFIG["left"]
+                ),
             }
             front_resized = futures["front"].result()
             wrist_resized = futures["wrist"].result()
             left_resized = futures["left"].result()
 
     else:
-        last_resized = cv2.resize(front_imgs[-1], (image_size, image_size), interpolation=cv2.INTER_AREA)
+        last_resized = cv2.resize(
+            front_imgs[-1], (image_size, image_size), interpolation=cv2.INTER_AREA
+        )
         last_pil = Image.fromarray(last_resized)
 
         with ThreadPoolExecutor(max_workers=2) as executor:
@@ -446,7 +467,12 @@ def write_tasks_jsonl(meta_dir: str, all_tasks: List[str]):
     tasks_path = os.path.join(meta_dir, "tasks.jsonl")
     with open(tasks_path, "w", encoding="utf-8") as f:
         for task_idx, task_text in enumerate(all_tasks):
-            f.write(json.dumps({"task_index": task_idx, "task": task_text}, ensure_ascii=False) + "\n")
+            f.write(
+                json.dumps(
+                    {"task_index": task_idx, "task": task_text}, ensure_ascii=False
+                )
+                + "\n"
+            )
 
 
 def append_episode_meta(meta_dir: str, episode_index: int, length: int, task_text: str):
@@ -480,14 +506,38 @@ def write_info_json(
         "data_path": "data/chunk-{episode_chunk:03d}/episode_{episode_index:06d}.parquet",
         "video_path": "videos/chunk-{episode_chunk:03d}/{video_key}/episode_{episode_index:06d}.mp4",
         "features": {
-            "image": {"dtype": "image", "shape": [image_size, image_size, 3], "names": ["height", "width", "channel"]},
-            "wrist_image": {"dtype": "image", "shape": [image_size, image_size, 3], "names": ["height", "width", "channel"]},
-            "left_image": {"dtype": "image", "shape": [image_size, image_size, 3], "names": ["height", "width", "channel"]},
-            "state": {"dtype": "float32", "shape": [8], "names": ["x", "y", "z", "roll", "pitch", "yaw", "gripper", "gripper"]},
+            "image": {
+                "dtype": "image",
+                "shape": [image_size, image_size, 3],
+                "names": ["height", "width", "channel"],
+            },
+            "wrist_image": {
+                "dtype": "image",
+                "shape": [image_size, image_size, 3],
+                "names": ["height", "width", "channel"],
+            },
+            "left_image": {
+                "dtype": "image",
+                "shape": [image_size, image_size, 3],
+                "names": ["height", "width", "channel"],
+            },
+            "state": {
+                "dtype": "float32",
+                "shape": [8],
+                "names": ["x", "y", "z", "roll", "pitch", "yaw", "gripper", "gripper"],
+            },
             "actions": {
                 "dtype": "float32",
                 "shape": [7],
-                "names": ["delta_x", "delta_y", "delta_z", "delta_roll", "delta_pitch", "delta_yaw", "gripper"],
+                "names": [
+                    "delta_x",
+                    "delta_y",
+                    "delta_z",
+                    "delta_roll",
+                    "delta_pitch",
+                    "delta_yaw",
+                    "gripper",
+                ],
             },
             "timestamp": {"dtype": "float32", "shape": [1], "names": None},
             "frame_index": {"dtype": "int64", "shape": [1], "names": None},
@@ -532,12 +582,12 @@ def convert_cleaned_dataset(
         print(f"[WARNING] No cleaned HDF5 files found in: {cleaned_path}")
         return 0, 0, []
 
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print(f"Converting Dataset: {cleaned_path}")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
     print(f"Task: {task_text}")
     print(f"Files: {len(files)}")
-    print(f"{'='*80}\n")
+    print(f"{'=' * 80}\n")
 
     data_root = os.path.join(output_root, "data")
     meta_root = os.path.join(output_root, "meta")
@@ -575,7 +625,9 @@ def convert_cleaned_dataset(
             save_episode_with_datasets(data, parquet_path)
 
             # Append to episodes.jsonl
-            append_episode_meta(meta_root, ep_idx, length=episode_length, task_text=task_text)
+            append_episode_meta(
+                meta_root, ep_idx, length=episode_length, task_text=task_text
+            )
 
             total_frames += episode_length
 
@@ -592,7 +644,9 @@ def convert_cleaned_dataset(
 # ============================================================================
 
 
-def run_pipeline(config_path: str, skip_cleaning: bool = False, skip_conversion: bool = False):
+def run_pipeline(
+    config_path: str, skip_cleaning: bool = False, skip_conversion: bool = False
+):
     """运行完整的清洗+转换流程"""
 
     # Load config
@@ -628,7 +682,9 @@ def run_pipeline(config_path: str, skip_cleaning: bool = False, skip_conversion:
     )
 
     # Create temp directory for cleaned data
-    temp_clean_root = config.get("temp_clean_dir", os.path.join(output_root, "_temp_cleaned"))
+    temp_clean_root = config.get(
+        "temp_clean_dir", os.path.join(output_root, "_temp_cleaned")
+    )
 
     # Collect all unique tasks
     all_tasks = []
@@ -667,12 +723,12 @@ def run_pipeline(config_path: str, skip_cleaning: bool = False, skip_conversion:
         task_text = ds_config["task"]
         task_index = all_tasks.index(task_text)
 
-        print(f"\n{'#'*80}")
+        print(f"\n{'#' * 80}")
         print(f"Dataset {ds_idx + 1}/{len(datasets)}")
-        print(f"{'#'*80}")
+        print(f"{'#' * 80}")
         print(f"Input: {input_path}")
         print(f"Task: {task_text}")
-        print(f"{'#'*80}\n")
+        print(f"{'#' * 80}\n")
 
         # Step 1: Clean data
         if not skip_cleaning:
@@ -748,15 +804,21 @@ def run_pipeline(config_path: str, skip_cleaning: bool = False, skip_conversion:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="HDF5 to LeRobot Pipeline (Clean + Convert)")
+    parser = argparse.ArgumentParser(
+        description="HDF5 to LeRobot Pipeline (Clean + Convert)"
+    )
     parser.add_argument(
         "--config",
         type=str,
         default="/scratch/e1583450/VLA_Flywheel/utils/dataset/1-convert_config.json",
         help="Path to pipeline config JSON",
     )
-    parser.add_argument("--skip-cleaning", action="store_true", help="Skip cleaning step")
-    parser.add_argument("--skip-conversion", action="store_true", help="Skip conversion step")
+    parser.add_argument(
+        "--skip-cleaning", action="store_true", help="Skip cleaning step"
+    )
+    parser.add_argument(
+        "--skip-conversion", action="store_true", help="Skip conversion step"
+    )
 
     args = parser.parse_args()
 
@@ -764,7 +826,11 @@ def main():
         print(f"[ERROR] Config file not found: {args.config}")
         return
 
-    run_pipeline(args.config, skip_cleaning=args.skip_cleaning, skip_conversion=args.skip_conversion)
+    run_pipeline(
+        args.config,
+        skip_cleaning=args.skip_cleaning,
+        skip_conversion=args.skip_conversion,
+    )
 
 
 if __name__ == "__main__":

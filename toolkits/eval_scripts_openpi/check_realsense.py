@@ -84,8 +84,9 @@ def check_camera(serial: str | None, num_frames: int, show_display: bool):
         if show_display:
             # Overlay info
             info = f"Frame {i}  {fps_inst:.1f} fps  serial={serial or 'any'}"
-            cv2.putText(frame, info, (10, 25),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            cv2.putText(
+                frame, info, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2
+            )
             cv2.imshow("RealSense check (press q to quit)", frame)
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
@@ -98,8 +99,8 @@ def check_camera(serial: str | None, num_frames: int, show_display: bool):
 
     if frame_times:
         fps_mean = 1.0 / np.mean(frame_times)
-        fps_std  = np.std([1.0 / t for t in frame_times if t > 0])
-        print(f"\n── Summary ──────────────────────────────")
+        fps_std = np.std([1.0 / t for t in frame_times if t > 0])
+        print("\n── Summary ──────────────────────────────")
         print(f"  Frames read : {len(frame_times)}")
         print(f"  FPS         : {fps_mean:.1f} ± {fps_std:.1f}")
         print(f"  OK          : {'YES' if fps_mean > 5 else 'LOW – check connection'}")
@@ -107,14 +108,26 @@ def check_camera(serial: str | None, num_frames: int, show_display: bool):
 
 def main():
     parser = argparse.ArgumentParser(description="RealSense camera check")
-    parser.add_argument("--list", action="store_true",
-                        help="List connected devices and exit")
-    parser.add_argument("--serial", type=str, default=None,
-                        help="Camera serial number (omit for first available)")
-    parser.add_argument("--num_frames", type=int, default=60,
-                        help="Number of frames to read (0 = infinite until q)")
-    parser.add_argument("--no_display", action="store_true",
-                        help="Disable OpenCV window (for headless servers)")
+    parser.add_argument(
+        "--list", action="store_true", help="List connected devices and exit"
+    )
+    parser.add_argument(
+        "--serial",
+        type=str,
+        default=None,
+        help="Camera serial number (omit for first available)",
+    )
+    parser.add_argument(
+        "--num_frames",
+        type=int,
+        default=60,
+        help="Number of frames to read (0 = infinite until q)",
+    )
+    parser.add_argument(
+        "--no_display",
+        action="store_true",
+        help="Disable OpenCV window (for headless servers)",
+    )
     args = parser.parse_args()
 
     devices = list_devices()

@@ -44,7 +44,9 @@ def _stage_with_path_in_repo(local_path: str, path_in_repo: str | None):
     src = pathlib.Path(local_path).resolve()
     # Keep staging on the same filesystem as src so hardlinks can succeed.
     stage_dir = str(src.parent)
-    with tempfile.TemporaryDirectory(prefix="hf_upload_stage_", dir=stage_dir) as tmpdir:
+    with tempfile.TemporaryDirectory(
+        prefix="hf_upload_stage_", dir=stage_dir
+    ) as tmpdir:
         stage_root = pathlib.Path(tmpdir)
         dst = stage_root / path_in_repo
         dst.parent.mkdir(parents=True, exist_ok=True)
@@ -98,12 +100,20 @@ def upload_folder(
             path_in_repo=path_in_repo,
         )
 
-    prefix = "datasets" if repo_type == "dataset" else "models" if repo_type == "model" else repo_type
+    prefix = (
+        "datasets"
+        if repo_type == "dataset"
+        else "models"
+        if repo_type == "model"
+        else repo_type
+    )
     print(f"\nDone! Available at: https://huggingface.co/{prefix}/{repo_id}")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Upload a local folder to Hugging Face Hub")
+    parser = argparse.ArgumentParser(
+        description="Upload a local folder to Hugging Face Hub"
+    )
     parser.add_argument(
         "--path",
         type=str,

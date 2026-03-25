@@ -51,14 +51,14 @@ from huggingface_hub import snapshot_download
 # download 0323 put block on block dataset
 save_dir = "../hf_download/datasets/0323_put_block_on_block"
 repo_id = "kowyo/pick-and-place"
-repo_type="dataset"
-allow_patterns="*"
+repo_type = "dataset"
+allow_patterns = "*"
 
 snapshot_download(
-  local_dir=save_dir,
-  repo_id=repo_id,
-  repo_type=repo_type,
-  local_dir_use_symlinks=False,
-  resume_download=True,
-  allow_patterns=[allow_patterns]
+    local_dir=save_dir,
+    repo_id=repo_id,
+    repo_type=repo_type,
+    local_dir_use_symlinks=False,
+    resume_download=True,
+    allow_patterns=[allow_patterns],
 )

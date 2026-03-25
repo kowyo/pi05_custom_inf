@@ -135,7 +135,9 @@ def _resolve_repo_root(repo_id: str) -> Path:
     )
 
 
-def _apply_sim_bias(state_arr: np.ndarray, chunk_start: int, num_real: int | None) -> np.ndarray:
+def _apply_sim_bias(
+    state_arr: np.ndarray, chunk_start: int, num_real: int | None
+) -> np.ndarray:
     """Apply sim bias correction to rows that belong to sim data.
 
     For sim rows: state[2] += 0.10 (m), state[5] -= pi/4 (45 degrees in radians).
@@ -183,7 +185,9 @@ def _compute_from_parquet_only(
         max_rows = max(1, max_batches) * batch_size
 
     if add_bias and num_real is None:
-        raise ValueError("--add-bias requires --num-real to indicate where sim data starts.")
+        raise ValueError(
+            "--add-bias requires --num-real to indicate where sim data starts."
+        )
 
     stats = {
         "state": normalize.RunningStats(),
@@ -272,7 +276,9 @@ def main() -> None:
         if not hasattr(data_cfg_factory, "assets") or not dataclasses.is_dataclass(
             data_cfg_factory.assets
         ):
-            raise TypeError("cfg.data.assets is not a dataclass; cannot override asset_id")
+            raise TypeError(
+                "cfg.data.assets is not a dataclass; cannot override asset_id"
+            )
 
         resolved_asset_id = args.asset_id or Path(args.repo_id).name
         overridden_assets = dataclasses.replace(

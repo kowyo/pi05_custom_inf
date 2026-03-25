@@ -2,8 +2,13 @@ import argparse
 import torch
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--gpus", type=int, nargs="+", default=[0,1,3,4,5],
-                    help="GPU indices to test, e.g. --gpus 0 1 3. Defaults to all.")
+parser.add_argument(
+    "--gpus",
+    type=int,
+    nargs="+",
+    default=[0, 1, 3, 4, 5],
+    help="GPU indices to test, e.g. --gpus 0 1 3. Defaults to all.",
+)
 args = parser.parse_args()
 
 print(f"PyTorch version: {torch.__version__}")
@@ -29,7 +34,7 @@ for gpu_id in gpu_ids:
         print(f"  Total memory: {props.total_memory / 1024**3:.1f} GB")
     except Exception as e:
         print(f"  get_device_properties FAILED: {e}")
-        print(f"  Status: FAIL")
+        print("  Status: FAIL")
         print()
         continue
 
@@ -39,9 +44,9 @@ for gpu_id in gpu_ids:
         print(f"  Matrix multiply OK, shape: {r.shape}")
         del t, r
         torch.cuda.empty_cache()
-        print(f"  Status: PASS")
+        print("  Status: PASS")
     except Exception as e:
         print(f"  Matrix multiply FAILED: {e}")
-        print(f"  Status: FAIL")
+        print("  Status: FAIL")
 
     print()

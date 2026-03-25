@@ -52,7 +52,8 @@ os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 # ── Register BlockPAP-v1 env ────────────────────────────────────────────────
 _REAL2SIM = (
     pathlib.Path(__file__).resolve().parent.parent.parent
-    / "real_franka" / "real2sim_env"
+    / "real_franka"
+    / "real2sim_env"
 )
 sys.path.insert(0, str(_REAL2SIM))
 import pick_and_place  # noqa: F401 – registers BlockPAP-v1 (also provides TRAJ_ID global)
@@ -139,12 +140,16 @@ def _load_blockpap_policy(args):
         model,
         transforms=[
             *data_config.data_transforms.inputs,
-            transforms.Normalize(norm_stats, use_quantiles=data_config.use_quantile_norm),
+            transforms.Normalize(
+                norm_stats, use_quantiles=data_config.use_quantile_norm
+            ),
             *data_config.model_transforms.inputs,
         ],
         output_transforms=[
             *data_config.model_transforms.outputs,
-            transforms.Unnormalize(norm_stats, use_quantiles=data_config.use_quantile_norm),
+            transforms.Unnormalize(
+                norm_stats, use_quantiles=data_config.use_quantile_norm
+            ),
             *data_config.data_transforms.outputs,
         ],
         sample_kwargs={"num_steps": args.num_steps},
@@ -164,7 +169,7 @@ def get_ee_state(base_env):
     """
     tcp = base_env.agent.tcp
     p = _to_numpy(tcp.pose.p)[:3]
-    q_wxyz = _to_numpy(tcp.pose.q)[:4]               # SAPIEN [w, x, y, z]
+    q_wxyz = _to_numpy(tcp.pose.q)[:4]  # SAPIEN [w, x, y, z]
     q_xyzw = np.array([q_wxyz[1], q_wxyz[2], q_wxyz[3], q_wxyz[0]])
     euler = Rotation.from_quat(q_xyzw).as_euler("xyz").astype(np.float32)
 
@@ -182,11 +187,12 @@ def get_image(obs):
         img = img.cpu().numpy()
     else:
         img = np.asarray(img)
-    if img.ndim == 4:          # [B, H, W, C] → [H, W, C]
+    if img.ndim == 4:  # [B, H, W, C] → [H, W, C]
         img = img[0]
     if img.dtype != np.uint8:
-        img = (np.clip(img, 0, 255) if img.max() > 1.0
-               else (img * 255).clip(0, 255)).astype(np.uint8)
+        img = (
+            np.clip(img, 0, 255) if img.max() > 1.0 else (img * 255).clip(0, 255)
+        ).astype(np.uint8)
     return img
 
 
@@ -200,14 +206,17 @@ def is_success(info):
 
 # ── Main evaluation loop ─────────────────────────────────────────────────────
 
+
 def main(args):
     logger = setup_logger(args.exp_name, args.log_dir)
     np.random.seed(args.seed)
 
     # ── Override TRAJ_ID so env.reset() uses the requested trajectory ───────
     pick_and_place.TRAJ_ID = args.traj_id
-    logger.info(f"TRAJ_ID set to '{args.traj_id}' "
-                f"({'random initial states' if args.traj_id == 'random' else 'fixed initial state'})")
+    logger.info(
+        f"TRAJ_ID set to '{args.traj_id}' "
+        f"({'random initial states' if args.traj_id == 'random' else 'fixed initial state'})"
+    )
 
     # ── Policy ──────────────────────────────────────────────────────────────
     logger.info("Loading pi0.5 policy …")
@@ -215,8 +224,9 @@ def main(args):
     logger.info("Policy loaded.")
 
     # ── Environment ─────────────────────────────────────────────────────────
-    logger.info(f"Creating BlockPAP-v1  cam_t={args.cam_t!r}  "
-                f"control_mode=pd_ee_delta_pose")
+    logger.info(
+        f"Creating BlockPAP-v1  cam_t={args.cam_t!r}  control_mode=pd_ee_delta_pose"
+    )
     env = gym.make(
         "BlockPAP-v1",
         obs_mode="rgb",
@@ -253,8 +263,8 @@ def main(args):
             # Apply sim→real biases to match training convention.
             # state[2] is z (TCP height), state[5] is euler_z (yaw).
             # Rendering/logging uses the unmodified sim state.
-            SIM_Z_BIAS   =  0.1       if args.state_bias else 0.0   # +10 cm
-            SIM_YAW_BIAS = -np.pi / 4 if args.state_bias else 0.0   # -45°
+            SIM_Z_BIAS = 0.1 if args.state_bias else 0.0  # +10 cm
+            SIM_YAW_BIAS = -np.pi / 4 if args.state_bias else 0.0  # -45°
             state_for_model = state.copy()
             state_for_model[2] += SIM_Z_BIAS
             state_for_model[5] += SIM_YAW_BIAS
@@ -296,7 +306,7 @@ def main(args):
                 )
                 logger.info(
                     f"  [DEBUG t={t}] EE state (to model, biased) "
-                    f"z={state_for_model[2]:.4f}(+{SIM_Z_BIAS*100:.0f}cm)  "
+                    f"z={state_for_model[2]:.4f}(+{SIM_Z_BIAS * 100:.0f}cm)  "
                     f"yaw={np.degrees(state_for_model[5]):.1f}°({np.degrees(SIM_YAW_BIAS):+.0f}°)  "
                     f"full={np.round(state_for_model, 4).tolist()}"
                 )
@@ -308,8 +318,10 @@ def main(args):
             #              so input = actual_rad / rot_lower = actual_rad / (-0.1)
             #              this preserves sign: +0.01 rad → input -0.1 → output +0.01 rad ✓
             arm_norm = model_action[:6].astype(np.float32)
-            arm_norm[:3] = arm_norm[:3] / POS_LIMIT           # meters → [-1, 1]
-            arm_norm[3:6] = arm_norm[3:6] / (-POS_LIMIT)      # radians → [-1, 1] (rot_lower=-0.1)
+            arm_norm[:3] = arm_norm[:3] / POS_LIMIT  # meters → [-1, 1]
+            arm_norm[3:6] = arm_norm[3:6] / (
+                -POS_LIMIT
+            )  # radians → [-1, 1] (rot_lower=-0.1)
 
             # ── Gripper: absolute [0,1] → normalized per-finger target ──────
             # Training: action[6] = absolute gripper total width in [0,1]
@@ -318,10 +330,13 @@ def main(args):
             #       uses clip_and_scale_action → input must be in [-1, 1]
             GRIPPER_LOWER = -0.01
             GRIPPER_UPPER = 0.04
-            target_total = float(np.clip(model_action[6], 0.0, 1.0)) * 0.08  # → [0, 0.08] m
-            finger_target = target_total / 2.0                 # per finger [0, 0.04]
+            target_total = (
+                float(np.clip(model_action[6], 0.0, 1.0)) * 0.08
+            )  # → [0, 0.08] m
+            finger_target = target_total / 2.0  # per finger [0, 0.04]
             gripper_norm = np.float32(
-                2.0 * (finger_target - GRIPPER_LOWER) / (GRIPPER_UPPER - GRIPPER_LOWER) - 1.0
+                2.0 * (finger_target - GRIPPER_LOWER) / (GRIPPER_UPPER - GRIPPER_LOWER)
+                - 1.0
             )  # → [-1, 1]
 
             env_action = np.append(arm_norm, gripper_norm)  # (7,)
@@ -351,13 +366,15 @@ def main(args):
         if total_episodes <= args.num_save_videos:
             suffix = "success" if success else "failure"
             out_path = (
-                pathlib.Path(args.log_dir) / args.exp_name
+                pathlib.Path(args.log_dir)
+                / args.exp_name
                 / f"blockpap_ep{episode_idx:03d}_{suffix}.mp4"
             )
             out_path.parent.mkdir(parents=True, exist_ok=True)
             subsampled = frames[:: args.video_temp_subsample]
-            imageio.mimwrite(str(out_path), subsampled,
-                             fps=max(1, 20 // args.video_temp_subsample))
+            imageio.mimwrite(
+                str(out_path), subsampled, fps=max(1, 20 // args.video_temp_subsample)
+            )
             logger.info(f"  Video  : {out_path}  ({len(subsampled)} frames)")
 
     env.close()
@@ -375,50 +392,105 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Evaluate pi0.5 on BlockPAP-v1 using external_cam and pd_ee_delta_pose control."
     )
-    parser.add_argument("--log_dir", type=str, default="logs",
-                        help="Directory for log files and videos")
-    parser.add_argument("--exp_name", type=str, default="blockpap_pi05_eval",
-                        help="Experiment name (used for log/video filenames)")
-    parser.add_argument("--config_name", type=str, default="pi05_blockpap_mix",
-                        help="OpenPI data config name (must match training config)")
-    parser.add_argument("--pretrained_path", type=str, required=True,
-                        help="Path to the fine-tuned weights. "
-                             "Either a directory with model.safetensors "
-                             "OR a full_weights.pt file from RLinf SFT training. "
-                             "Example (RLinf): "
-                             "logs/20260311-12:27:57/test_data_alpha_ratio/checkpoints/"
-                             "global_step_4000/actor/model_state_dict/full_weights.pt")
-    parser.add_argument("--norm_stats_path", type=str,
-                        default="../hf_download/models/pi05_base",
-                        help="Directory that contains the norm stats subdirectory "
-                             "(<asset_id>/norm_stats.json). Defaults to the pi05 base "
-                             "model download, where BlockPAP-v1_Mix/norm_stats.json lives.")
-    parser.add_argument("--cam_t", type=str, default="og",
-                        choices=["og", "0302", "0303"],
-                        help="Camera translation preset (must match training data)")
-    parser.add_argument("--num_episodes", type=int, default=20,
-                        help="Total number of evaluation episodes")
-    parser.add_argument("--max_steps", type=int, default=3000,
-                        help="Max env steps per episode (BlockPAP-v1 has 600 step limit)")
-    parser.add_argument("--action_chunk", type=int, default=8,
-                        help="Action chunk size: replan every N steps")
-    parser.add_argument("--num_steps", type=int, default=5,
-                        help="Flow-matching denoising steps for pi0.5")
-    parser.add_argument("--num_save_videos", type=int, default=10,
-                        help="Save videos for the first N episodes")
-    parser.add_argument("--video_temp_subsample", type=int, default=1,
-                        help="Save every Nth frame to reduce video file size")
-    parser.add_argument("--traj_id", type=str, default="random",
-                        choices=["random", "0", "15", "25", "40", "45"],
-                        help="Trajectory ID for env.reset(). 'random' randomizes block/coaster "
-                             "positions each episode; a number fixes the initial configuration.")
-    parser.add_argument("--seed", type=int, default=42,
-                        help="Random seed")
-    parser.add_argument("--log_interval", type=int, default=50,
-                        help="Print debug info every N timesteps (default: 50)")
-    parser.add_argument("--state_bias", type=lambda x: x.lower() != "false",
-                        default=True, metavar="true|false",
-                        help="Enable sim→real state biases (+10 cm Z, -45° yaw). "
-                             "Set to false when the model was trained without these offsets. (default: true)")
+    parser.add_argument(
+        "--log_dir", type=str, default="logs", help="Directory for log files and videos"
+    )
+    parser.add_argument(
+        "--exp_name",
+        type=str,
+        default="blockpap_pi05_eval",
+        help="Experiment name (used for log/video filenames)",
+    )
+    parser.add_argument(
+        "--config_name",
+        type=str,
+        default="pi05_blockpap_mix",
+        help="OpenPI data config name (must match training config)",
+    )
+    parser.add_argument(
+        "--pretrained_path",
+        type=str,
+        required=True,
+        help="Path to the fine-tuned weights. "
+        "Either a directory with model.safetensors "
+        "OR a full_weights.pt file from RLinf SFT training. "
+        "Example (RLinf): "
+        "logs/20260311-12:27:57/test_data_alpha_ratio/checkpoints/"
+        "global_step_4000/actor/model_state_dict/full_weights.pt",
+    )
+    parser.add_argument(
+        "--norm_stats_path",
+        type=str,
+        default="../hf_download/models/pi05_base",
+        help="Directory that contains the norm stats subdirectory "
+        "(<asset_id>/norm_stats.json). Defaults to the pi05 base "
+        "model download, where BlockPAP-v1_Mix/norm_stats.json lives.",
+    )
+    parser.add_argument(
+        "--cam_t",
+        type=str,
+        default="og",
+        choices=["og", "0302", "0303"],
+        help="Camera translation preset (must match training data)",
+    )
+    parser.add_argument(
+        "--num_episodes",
+        type=int,
+        default=20,
+        help="Total number of evaluation episodes",
+    )
+    parser.add_argument(
+        "--max_steps",
+        type=int,
+        default=3000,
+        help="Max env steps per episode (BlockPAP-v1 has 600 step limit)",
+    )
+    parser.add_argument(
+        "--action_chunk",
+        type=int,
+        default=8,
+        help="Action chunk size: replan every N steps",
+    )
+    parser.add_argument(
+        "--num_steps",
+        type=int,
+        default=5,
+        help="Flow-matching denoising steps for pi0.5",
+    )
+    parser.add_argument(
+        "--num_save_videos",
+        type=int,
+        default=10,
+        help="Save videos for the first N episodes",
+    )
+    parser.add_argument(
+        "--video_temp_subsample",
+        type=int,
+        default=1,
+        help="Save every Nth frame to reduce video file size",
+    )
+    parser.add_argument(
+        "--traj_id",
+        type=str,
+        default="random",
+        choices=["random", "0", "15", "25", "40", "45"],
+        help="Trajectory ID for env.reset(). 'random' randomizes block/coaster "
+        "positions each episode; a number fixes the initial configuration.",
+    )
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument(
+        "--log_interval",
+        type=int,
+        default=50,
+        help="Print debug info every N timesteps (default: 50)",
+    )
+    parser.add_argument(
+        "--state_bias",
+        type=lambda x: x.lower() != "false",
+        default=True,
+        metavar="true|false",
+        help="Enable sim→real state biases (+10 cm Z, -45° yaw). "
+        "Set to false when the model was trained without these offsets. (default: true)",
+    )
     args = parser.parse_args()
     main(args)
