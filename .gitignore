@@ -22,3 +22,4 @@ hf_download
 real_franka/real2sim_env/mg_dataset
 PKG-INFO
 ckpt
+*.egg-info
