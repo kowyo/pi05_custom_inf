@@ -82,11 +82,15 @@ GRIPPER_CLOSE_THRESHOLD = 0.04  # total width below this → treat as closed
 # ── Policy loading ────────────────────────────────────────────────────────────
 
 
-def _load_hf_norm_stats(hf_stats_path: str) -> dict:
+def _load_hf_norm_stats(hf_stats_path: str, action_dim: int = 32) -> dict:
     """Convert a HuggingFace LeRobot stats.json to OpenPI norm_stats format.
 
     LeRobot key names (observation.state / action) are remapped to the OpenPI
     convention (state / actions) expected by transforms.Normalize/Unnormalize.
+
+    Stats are zero-padded to action_dim so that the padded-state dimensions
+    (FrankaEEInputs pads state from its raw dim to action_dim) normalise safely:
+    padding zeros map to -1.0 with the neutral q01=0 / q99=1 values.
     """
     import json
     from openpi.shared.normalize import NormStats  # type: ignore[import]
@@ -97,18 +101,29 @@ def _load_hf_norm_stats(hf_stats_path: str) -> dict:
     def _arr(key, field):
         return np.array(hf[key][field], dtype=np.float32)
 
+    def _pad(arr, pad_mean=0.0, pad_std=1.0, pad_q01=0.0, pad_q99=1.0, field=None):
+        """Pad a 1-D stats array to action_dim with a neutral constant."""
+        pad_value = {"mean": pad_mean, "std": pad_std, "q01": pad_q01, "q99": pad_q99}[field]
+        n = len(arr)
+        if n < action_dim:
+            arr = np.concatenate([arr, np.full(action_dim - n, pad_value, dtype=np.float32)])
+        return arr
+
+    def _parr(key, field):
+        return _pad(_arr(key, field), field=field)
+
     return {
         "state": NormStats(
-            mean=_arr("observation.state", "mean"),
-            std=_arr("observation.state", "std"),
-            q01=_arr("observation.state", "q01"),
-            q99=_arr("observation.state", "q99"),
+            mean=_parr("observation.state", "mean"),
+            std=_parr("observation.state", "std"),
+            q01=_parr("observation.state", "q01"),
+            q99=_parr("observation.state", "q99"),
         ),
         "actions": NormStats(
-            mean=_arr("action", "mean"),
-            std=_arr("action", "std"),
-            q01=_arr("action", "q01"),
-            q99=_arr("action", "q99"),
+            mean=_parr("action", "mean"),
+            std=_parr("action", "std"),
+            q01=_parr("action", "q01"),
+            q99=_parr("action", "q99"),
         ),
     }
 
@@ -154,7 +169,7 @@ def _load_blockpap_policy(args):
         raise ValueError("asset_id is None; cannot locate norm stats.")
 
     if getattr(args, "hf_stats_path", None):
-        norm_stats = _load_hf_norm_stats(args.hf_stats_path)
+        norm_stats = _load_hf_norm_stats(args.hf_stats_path, action_dim=config.model.action_dim)
     else:
         norm_stats = _checkpoints.load_norm_stats(norm_stats_dir, asset_id)
 
